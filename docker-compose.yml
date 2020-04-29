@@ -1,47 +1,132 @@
 version: "3.8"
 
+secrets:
+  dns_api_token:
+    file: "./secrets/dns_api_token.secret"
+
 services:
-  backend:
-    build:
-      context: ./backend
-      args:
-        INSTALL_DEV: ${INSTALL_DEV-true}
-        # SSL_KEYFILE: ${SSL_CERTFILE}
-        # SSL_CERTFILE: ${SSL_CERTFILE}
-    depends_on:
-      - db
-      - redis
+  proxy:
+    image: traefik:v2.2
+    container_name: proxy
+    command:
+      - --log.level=DEBUG
+      - --api.insecure=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.traefik.address=:8888
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    volumes:
+      - ./letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     env_file:
       - .env
     environment:
-      - "REDIS_URL=redis://redis:6379/0"
-    links:
-      - redis
+      - dns_api_token
     ports:
-      - "8000:8000"
-    volumes:
-      - "./backend:/app"
-
-  db:
-    container_name: db
-    env_file:
-      - .env
-    environment:
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_USER: postgres
-    image: postgres
-    volumes:
-      - "db-data:/var/lib/postgresql/data"
-
-  redis:
-    image: "redis:5-alpine"
+      - 80:80
+      - 443:443
+      - 8888:8888
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dashboard.rule=Host(`traefik.$DOMAIN`)
+      - traefik.http.routers.dashboard.entrypoints=websecure
+      - traefik.http.routers.dashboard.tls=true
+      - traefik.http.routers.dashboard.tls.certresolver=letsencrypt
+      - traefik.http.services.dashboard.loadbalancer.server.port=8888
+      # HTTP Redirect
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.routers.redirect-https.rule=hostregexp(`{host:.+}`)
+      - traefik.http.routers.redirect-https.entrypoints=web
+      - traefik.http.routers.redirect-https.middlewares=redirect-to-https
 
   frontend:
+    container_name: frontend
     build:
       context: ./frontend
     env_file:
       - .env
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.traefik.rule=Host(`$DOMAIN`)
+      - traefik.http.routers.traefik.entrypoints=websecure
+      - traefik.http.routers.traefik.tls=true
+      - traefik.http.routers.traefik.tls.certresolver=letsencrypt
+
+  api:
+    container_name: api
+    build:
+      context: ./backend
+    depends_on:
+      - postgres
+      - redis
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - SERVER_NAME=${DOMAIN}
+      - SERVER_HOST=http://${DOMAIN}
+    links:
+      - redis
+    volumes:
+      - ./backend:/app
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.rule=Host(`$DOMAIN`) && PathPrefix(`/api`,`/ws`,`/docs`,`/redoc`)
+      - traefik.http.routers.api.entrypoints=websecure
+      - traefik.http.routers.api.tls=true
+      - traefik.http.routers.api.tls.certresolver=letsencrypt
+
+  redis:
+    container_name: redis
+    image: "redis:5-alpine"
+
+  postgres:
+    container_name: postgres
+    image: postgres:12
+    volumes:
+      - "db-data:/var/lib/postgresql/data"
+    env_file:
+      - .env
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4
+    depends_on:
+      - db
+    env_file:
+      - .env
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=user@domain.com
+      - PGADMIN_DEFAULT_PASSWORD=SuperSecret
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.pgadmin.rule=Host(`pgadmin.$DOMAIN`)
+      - traefik.http.routers.pgadmin.entrypoints=websecure
+      - traefik.http.routers.pgadmin.tls=true
+      - traefik.http.routers.pgadmin.tls.certresolver=letsencrypt
+      - traefik.http.routers.pgadmin.service=pgadmin
+      - traefik.http.services.pgadmin.loadbalancer.server.port=5050
+
+  portainer:
+    image: portainer/portainer
+    container_name: portainer
+    hostname: portainer
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - portainer_data:/data
+    labels:
+      - "traefik.enable=true"
+      - traefik.http.routers.portainer.rule=Host(`portainer.$DOMAIN`)
+      - traefik.http.routers.portainer.entrypoints=websecure
+      - traefik.http.routers.portainer.tls=true
+      - traefik.http.routers.portainer.tls.certresolver=letsencrypt
 
 volumes:
-  db-data: null
+  postgres-data: null
   redis-data: null
+  portainer_data: null

@@ -1,4 +1,4 @@
-FROM python:3.8
+FROM tiangolo/uvicorn-gunicorn:python3.8
 
 WORKDIR /app/
 
@@ -17,8 +17,4 @@ RUN bash -c "if [ $INSTALL_DEV == 'true' ] ; then poetry install --no-root ; els
 
 COPY ./ /app
 ENV PYTHONPATH=/app
-
-RUN useradd appuser && chown -R appuser /app
-USER appuser
-
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host=0.0.0.0", "--port=8000"]
+ENV APP_MODULE="app.main:app"

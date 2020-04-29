@@ -15,7 +15,6 @@ asyncio-redis = "^0.15.1"
 async-timeout = "^3.0.1"
 fastapi-utils = "^0.2.1"
 
-
 [tool.poetry.dev-dependencies]
 flake8 = "^3.7.9"
 black = {version = "^19.10b0", allow-prereleases = true}

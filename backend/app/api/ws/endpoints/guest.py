@@ -38,5 +38,9 @@ class GuestWebSocket(APIWebSocketEndpoint):
         await redis.publish(self.presenter_ch_name, data)
 
     async def on_disconnect(self, ws: WebSocket, close_code: int) -> None:
-        self.worker_task.cancel()
-        await redis.unsubscribe(self.interactor_ch)
+        worker_task = getattr(self, "worker_task", None)
+        if worker_task:
+            self.worker_task.cancel()
+        interactor_ch = getattr(self, "interactor_ch", None)
+        if interactor_ch:
+            await redis.unsubscribe(interactor_ch)

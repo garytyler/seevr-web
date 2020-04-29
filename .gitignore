@@ -382,3 +382,15 @@ frontend/webpack-stats.json
 
 # Tortoise ORM
 *.sqlite*
+
+# Traefik
+traefik/certs/*
+!traefik/certs/.gitkeep
+
+# Let's Encrypt
+letsencrypt*
+
+# Docker secrets
+**/*.secret
+.secrets/*
+!.secrets/.gitkeep

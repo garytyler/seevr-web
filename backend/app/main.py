@@ -15,14 +15,14 @@ async def on_shutdown_event() -> None:
     await disconnect_redis()
 
 
-def get_app() -> FastAPI:
-    app = FastAPI(debug=settings.DEBUG)
-    app.include_router(api_router)
-    app.add_event_handler("startup", on_startup_event)
-    app.add_event_handler("shutdown", on_shutdown_event)
-    add_middlewares(app)
-    register_db(app)
-    return app
-
-
-app = get_app()
+app = FastAPI(
+    debug=settings.DEBUG,
+    title=settings.PROJECT_TITLE,
+    # Required to load deployed api docs. Result of bug expected to be fixed soon.
+    openapi_url="/api/openapi.json"
+)
+app.include_router(api_router)
+app.add_event_handler("startup", on_startup_event)
+app.add_event_handler("shutdown", on_shutdown_event)
+add_middlewares(app)
+register_db(app)

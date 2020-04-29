@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  proxy:
+    command:
+      - --api.insecure=true
+      - --entrypoints.web.address=:80
+  # frontend:
+  #   build:
+  #     target: build-stage
+  #   command: npm run serve --port=8080
+  #   ports:
+  #     - 8080:8080
+  #   volumes:
+  #     - type: bind
+  #       source: ./frontend
+  #       target: /app/
+  #   stdin_open: true
+  #   tty: true
+  #   environment:
+  #     CHOKIDAR_USEPOLLING: "true"
+  #   labels:
+  #     - traefik.http.routers.frontend.entrypoints=web,websecure
+
+  api:
+    command: ["/start-reload.sh"]
+    build:
+      args:
+        - INSTALL_DEV=true
+    environment:
+      - DEBUG=True
+    ports:
+      - 8000:8000
+    labels:
+      - traefik.http.routers.api.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`,`/ws`,`/docs`,`/redoc`)
+      - traefik.http.routers.api.entrypoints=web
+    environment:
+      - GUNICORN_CMD_ARGS="--reload"
