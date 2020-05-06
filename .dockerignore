@@ -23,3 +23,5 @@
 README.md
 **/.pre-commit-config.*
 **/.gitkeep
+**/*.secret
+.secrets/*
